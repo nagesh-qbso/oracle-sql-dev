@@ -1,0 +1,613 @@
+create or replace package FETCH_VENDOR_AGEING_PKG is
+  TYPE DATA_SET IS REF CURSOR;
+  PROCEDURE FETCH_VENDOR_AGEING_LIST(LOC_PK_IN     NUMBER,
+                                     AGENT_PK_IN   NUMBER,
+                                     DATE_AS_OF_IN DATE,
+                                     VENDOR_PK_IN  NUMBER,
+                                     VOUCHER_PK_IN NUMBER,
+                                     CURR_PK_IN    NUMBER,
+                                     FIRSTAGE_IN   NUMBER,
+                                     SECONDAGE_IN  NUMBER,
+                                     THIRDAGE_IN   NUMBER,
+                                     FOURTHAGE_IN  NUMBER,
+                                     LOG_LOC_IN    NUMBER,
+                                     ISADMIN_IN    NUMBER,
+                                     LINE_MST_PK_IN NUMBER,                                    
+                                     LOCATION_CUR  OUT DATA_SET,
+                                     AGENT_CUR     OUT DATA_SET,
+                                     VENDOR_CUR    OUT DATA_SET,
+                                     VOUCHER_CUR   OUT DATA_SET);
+  
+  PROCEDURE FETCH_VENDOR_AGEING_REPORT(LOC_PK_IN     NUMBER,
+                                     AGENT_PK_IN   NUMBER,
+                                     DATE_AS_OF_IN DATE,
+                                     VENDOR_PK_IN  NUMBER,
+                                     VOUCHER_PK_IN NUMBER,
+                                     CURR_PK_IN    NUMBER,
+                                     FIRSTAGE_IN   NUMBER,
+                                     SECONDAGE_IN  NUMBER,
+                                     THIRDAGE_IN   NUMBER,
+                                     FOURTHAGE_IN  NUMBER,
+                                     LOG_LOC_IN    NUMBER,
+                                     ISADMIN_IN    NUMBER,                                     
+                                     REPORT_CUR   OUT DATA_SET);
+   
+  PROCEDURE FETCH_VENDOR_AGEING_ROE(LOC_PK_IN     NUMBER,
+                                     AGENT_PK_IN   NUMBER,
+                                     DATE_AS_OF_IN DATE,
+                                     VENDOR_PK_IN  NUMBER,
+                                     VOUCHER_PK_IN NUMBER,
+                                     CURR_PK_IN    NUMBER,
+                                     FIRSTAGE_IN   NUMBER,
+                                     SECONDAGE_IN  NUMBER,
+                                     THIRDAGE_IN   NUMBER,
+                                     FOURTHAGE_IN  NUMBER,
+                                     LOG_LOC_IN    NUMBER,
+                                     ISADMIN_IN    NUMBER,                                                                         
+                                     VOUCHER_CUR   OUT DATA_SET);
+                                     
+
+end FETCH_VENDOR_AGEING_PKG;
+/
+create or replace package body FETCH_VENDOR_AGEING_PKG is
+
+  PROCEDURE FETCH_VENDOR_AGEING_LIST(LOC_PK_IN     NUMBER,
+                                     AGENT_PK_IN   NUMBER,
+                                     DATE_AS_OF_IN DATE,
+                                     VENDOR_PK_IN  NUMBER,
+                                     VOUCHER_PK_IN NUMBER,
+                                     CURR_PK_IN    NUMBER,
+                                     FIRSTAGE_IN   NUMBER,
+                                     SECONDAGE_IN  NUMBER,
+                                     THIRDAGE_IN   NUMBER,
+                                     FOURTHAGE_IN  NUMBER,
+                                     LOG_LOC_IN    NUMBER,
+                                     ISADMIN_IN    NUMBER,
+                                     LINE_MST_PK_IN NUMBER,                                    
+                                     LOCATION_CUR  OUT DATA_SET,
+                                     AGENT_CUR     OUT DATA_SET,
+                                     VENDOR_CUR    OUT DATA_SET,
+                                     VOUCHER_CUR   OUT DATA_SET) IS
+  
+    STRSTRING      VARCHAR2(32767);
+    STRSTRING1     VARCHAR2(32767);
+    STRSTRING2     VARCHAR2(32767);
+    STRSTRING3     VARCHAR2(32767);
+    STRSTRING4     VARCHAR2(32767);
+    STRSTRING5     VARCHAR2(32767);
+    V_MAIN         VARCHAR2(32767);
+    V_TOTALPAGE    NUMBER(10);
+    V_TOTALRECORDS NUMBER(10);
+    V_CURRENTPAGE  NUMBER(10);
+    V_LAST         NUMBER(10);
+    V_START        NUMBER(10);
+    V_PAGESIZE     NUMBER(10);
+  
+  begin
+    V_MAIN := '';
+    -- V_CURRENTPAGE  := CURRENTPAGE_IN;
+    V_TOTALRECORDS := 0;
+    --    V_TOTALPAGE    := TOTALPAGE_IN;
+    V_LAST     := 0;
+    V_START    := 0;
+    V_PAGESIZE := 20;  
+
+  
+
+  STRSTRING := ' SELECT QRY.LOCATION_MST_PK,
+       QRY.LOCATION_ID,
+       QRY.LOCATION_NAME,
+       SUM(COL1),
+       SUM(COL2),
+       SUM(COL3),
+       SUM(COL4),
+       SUM(COL5),
+       (SUM(COL1) + SUM(COL2) + SUM(COL3) + SUM(COL4) + SUM(COL5)) TOTAL FROM ( ';
+   STRSTRING1 := ' SELECT LOCATION_MST_PK,
+                   LOCATION_ID,
+                   LOCATION_NAME,';
+   STRSTRING1 := STRSTRING1 || ' (CASE WHEN Q.AGE <= '|| FIRSTAGE_IN || ' THEN (Q.BAL) ELSE 0 END) COL1,';
+   STRSTRING1 := STRSTRING1 || ' (CASE WHEN Q.AGE BETWEEN '|| (FIRSTAGE_IN+1)   || ' AND ' || SECONDAGE_IN ||' THEN (Q.BAL) ELSE 0 END) COL2,';
+   STRSTRING1 := STRSTRING1 || ' (CASE WHEN Q.AGE BETWEEN '|| (SECONDAGE_IN+1)  || ' AND ' || THIRDAGE_IN ||' THEN (Q.BAL) ELSE 0 END) COL3,';
+   STRSTRING1 := STRSTRING1 || ' (CASE WHEN Q.AGE BETWEEN '|| (THIRDAGE_IN+1)   || ' AND ' || FOURTHAGE_IN ||' THEN (Q.BAL) ELSE 0 END) COL4,';   
+   STRSTRING1 := STRSTRING1 || ' (CASE WHEN Q.AGE > '|| FOURTHAGE_IN ||' THEN (Q.BAL) ELSE 0 END) COL5 FROM ( ';      
+   STRSTRING2 := ' SELECT DISTINCT QILS_LOC.LOCATION_MST_PK,
+                                QILS_LOC.LOCATION_ID,
+                                QILS_LOC.LOCATION_NAME,
+                                LMT.LOCATION_MST_PK AGENT_PK,
+                                LMT.LOCATION_ID AGENT_ID,
+                                LMT.LOCATION_NAME AGENT_NAME,
+                                VMT.VENDOR_MST_PK,
+                                VMT.VENDOR_ID,
+                                VMT.VENDOR_NAME,
+                                DVH.DA_VOUCHER_HDR_PK,
+                                DVH.DA_VOUCHER_REF_NO,';
+   STRSTRING2 := STRSTRING2 || ' ROUND(CONVERTCURRENCY(DVH.CUR_MST_FK,' || CURR_PK_IN || ',(DVH.TOTAL_AMOUNT - NVL(DVH.PAID_AMOUNT, 0))),2) BAL,';                              
+   STRSTRING2 := STRSTRING2 || ' TO_DATE(''' || DATE_AS_OF_IN || ''',DATEFORMAT) - TO_DATE(DVH.INVOICE_DUE_DATE, DATEFORMAT) AGE ';
+   STRSTRING3 := ' FROM QILS_LOCATION_MST_TBL QILS_LOC,
+                       VENDOR_MST_TBL        VMT,
+                       DA_VOUCHER_HDR        DVH,
+                       DA_VOUCHER_DTL        DVD,
+                       LOCATION_MST_TBL      LMT 
+    WHERE VMT.QILS_LOCATION_MST_FK = QILS_LOC.LOCATION_MST_PK
+                   AND DVH.DA_VOUCHER_HDR_PK = DVD.DA_VOUCHER_HDR_FK
+                   AND DVH.VENDOR_MST_FK = VMT.VENDOR_MST_PK
+                   AND DVH.LOCATION_MST_FK = LMT.LOCATION_MST_PK
+                   AND LMT.QILS_LOCATION_MST_FK = QILS_LOC.LOCATION_MST_PK ';
+    STRSTRING3 := STRSTRING3 || ' AND DVH.INVOICE_DUE_DATE <= TO_DATE(''' || DATE_AS_OF_IN || ''',DATEFORMAT )';
+    STRSTRING3 := STRSTRING3 || ' AND DVH.LINE_MST_FK = '|| LINE_MST_PK_IN; 
+    IF LOC_PK_IN > 0 AND AGENT_PK_IN > 0 THEN
+        STRSTRING3 := STRSTRING3 || ' AND LMT.LOCATION_MST_PK = '|| AGENT_PK_IN;     
+        STRSTRING3 := STRSTRING3 || ' AND QILS_LOC.LOCATION_MST_PK = '|| LOC_PK_IN;
+    ELSIF LOC_PK_IN > 0 THEN
+        STRSTRING3 := STRSTRING3 || ' AND LMT.QILS_LOCATION_MST_FK='|| LOC_PK_IN;
+          /*AND LMT.QILS_LOCATION_MST_FK IN (SELECT L.QILS_LOCATION_MST_FK FROM LOCATION_MST_TBL L
+                   START WITH L.QILS_LOCATION_MST_FK = 422                
+                   CONNECT BY PRIOR L.LOCATION_MST_PK = L.REPORTING_TO_FK)*/
+    ELSIF AGENT_PK_IN > 0 THEN
+        STRSTRING3 := STRSTRING3 || ' AND LMT.QILS_LOCATION_MST_FK IN (SELECT L.QILS_LOCATION_MST_FK FROM LOCATION_MST_TBL L ';
+        STRSTRING3 := STRSTRING3 || ' START WITH L.LOCATION_MST_PK = '||AGENT_PK_IN;
+        STRSTRING3 := STRSTRING3 || ' CONNECT BY PRIOR L.LOCATION_MST_PK = L.REPORTING_TO_FK) ';
+    ELSE
+        IF ISADMIN_IN = 1 THEN
+          STRSTRING3 := STRSTRING3 || ' AND LMT.QILS_LOCATION_MST_FK IN (SELECT L.QILS_LOCATION_MST_FK FROM LOCATION_MST_TBL L ';
+          STRSTRING3 := STRSTRING3 || ' START WITH L.LOCATION_MST_PK = '||LOG_LOC_IN ;
+          STRSTRING3 := STRSTRING3 || ' CONNECT BY PRIOR L.LOCATION_MST_PK = L.REPORTING_TO_FK) ';
+        ELSE
+          STRSTRING3 := STRSTRING3 || ' AND LMT.QILS_LOCATION_MST_FK IN (SELECT L.QILS_LOCATION_MST_FK FROM LOCATION_MST_TBL L ';
+          STRSTRING3 := STRSTRING3 || ' WHERE L.LOCATION_MST_PK = '||LOG_LOC_IN || ')';
+        END IF;       
+    END IF;
+
+    IF VENDOR_PK_IN > 0 THEN
+      STRSTRING3 := STRSTRING3 || ' AND VMT.VENDOR_MST_PK = '||VENDOR_PK_IN;
+    END IF;
+    IF VOUCHER_PK_IN > 0 THEN
+      STRSTRING3 := STRSTRING3 || ' AND DVH.DA_VOUCHER_HDR_PK = '||VOUCHER_PK_IN;
+    END IF;
+    STRSTRING3 := STRSTRING3 || ' )Q  /* WHERE (Q.BAL) > 0 AND Q.AGE > 0 */) QRY ';
+    STRSTRING3 := STRSTRING3 || ' GROUP BY QRY.LOCATION_MST_PK, QRY.LOCATION_ID, QRY.LOCATION_NAME ';
+
+    --P_DEBUG('FETCH_VENDOR_AGEING_PKG.FETCH_VENDOR_AGEING_LIST-LOC', STRSTRING || STRSTRING1 || STRSTRING2 || STRSTRING3);
+    OPEN LOCATION_CUR FOR STRSTRING || STRSTRING1 || STRSTRING2 || STRSTRING3;
+    
+    
+    STRSTRING := ' SELECT QRY.AGENT_PK,
+       QRY.AGENT_ID,
+       QRY.AGENT_NAME,
+       QRY.LOCATION_MST_PK,
+       SUM(COL1),
+       SUM(COL2),
+       SUM(COL3),
+       SUM(COL4),
+       SUM(COL5),
+       (SUM(COL1) +SUM(COL2) + SUM(COL3) + SUM(COL4) + SUM(COL5)) TOTAL FROM ( ';
+   STRSTRING1 := ' SELECT AGENT_PK,
+                   AGENT_ID,
+                   AGENT_NAME,LOCATION_MST_PK,';
+   STRSTRING1 := STRSTRING1 || ' (CASE WHEN Q.AGE <='|| FIRSTAGE_IN || ' THEN (Q.BAL) ELSE 0 END) COL1,';
+   STRSTRING1 := STRSTRING1 || ' (CASE WHEN Q.AGE BETWEEN '|| (FIRSTAGE_IN+1) || ' AND ' || SECONDAGE_IN ||' THEN (Q.BAL) ELSE 0 END) COL2,';
+   STRSTRING1 := STRSTRING1 || ' (CASE WHEN Q.AGE BETWEEN '|| (SECONDAGE_IN+1) || ' AND ' || THIRDAGE_IN ||' THEN (Q.BAL) ELSE 0 END) COL3,';
+   STRSTRING1 := STRSTRING1 || ' (CASE WHEN Q.AGE BETWEEN '|| (THIRDAGE_IN+1) || ' AND ' || FOURTHAGE_IN ||' THEN (Q.BAL) ELSE 0 END) COL4,';   
+   STRSTRING1 := STRSTRING1 || ' (CASE WHEN Q.AGE > '|| FOURTHAGE_IN ||' THEN (Q.BAL) ELSE 0 END) COL5 FROM ( ';      
+   STRSTRING2 := ' SELECT DISTINCT QILS_LOC.LOCATION_MST_PK,
+                                QILS_LOC.LOCATION_ID,
+                                QILS_LOC.LOCATION_NAME,
+                                LMT.LOCATION_MST_PK AGENT_PK,
+                                LMT.LOCATION_ID AGENT_ID,
+                                LMT.LOCATION_NAME AGENT_NAME,
+                                VMT.VENDOR_MST_PK,
+                                VMT.VENDOR_ID,
+                                VMT.VENDOR_NAME,
+                                DVH.DA_VOUCHER_HDR_PK,
+                                DVH.DA_VOUCHER_REF_NO,';
+   STRSTRING2 := STRSTRING2 || ' ROUND(CONVERTCURRENCY(DVH.CUR_MST_FK,' || CURR_PK_IN || ',(DVH.TOTAL_AMOUNT - NVL(DVH.PAID_AMOUNT, 0))),2) BAL,';                                
+   STRSTRING2 := STRSTRING2 || ' TO_DATE(''' || DATE_AS_OF_IN || ''',DATEFORMAT) - TO_DATE(DVH.INVOICE_DUE_DATE, DATEFORMAT) AGE ';
+   STRSTRING3 := ' FROM QILS_LOCATION_MST_TBL QILS_LOC,
+                       VENDOR_MST_TBL        VMT,
+                       DA_VOUCHER_HDR        DVH,
+                       DA_VOUCHER_DTL        DVD,
+                       LOCATION_MST_TBL      LMT 
+    WHERE VMT.QILS_LOCATION_MST_FK = QILS_LOC.LOCATION_MST_PK
+                   AND DVH.DA_VOUCHER_HDR_PK = DVD.DA_VOUCHER_HDR_FK
+                   AND DVH.VENDOR_MST_FK = VMT.VENDOR_MST_PK
+                   AND DVH.LOCATION_MST_FK = LMT.LOCATION_MST_PK
+                   AND LMT.QILS_LOCATION_MST_FK = QILS_LOC.LOCATION_MST_PK ';
+    STRSTRING3 := STRSTRING3 || ' AND DVH.INVOICE_DUE_DATE <= TO_DATE(''' || DATE_AS_OF_IN || ''',DATEFORMAT )';
+        STRSTRING3 := STRSTRING3 || ' AND DVH.LINE_MST_FK = '|| LINE_MST_PK_IN;
+     IF LOC_PK_IN > 0 AND AGENT_PK_IN > 0 THEN
+        STRSTRING3 := STRSTRING3 || ' AND LMT.LOCATION_MST_PK = '|| AGENT_PK_IN;     
+        STRSTRING3 := STRSTRING3 || ' AND QILS_LOC.LOCATION_MST_PK = '|| LOC_PK_IN;
+    ELSIF LOC_PK_IN > 0 THEN
+        STRSTRING3 := STRSTRING3 || ' AND LMT.QILS_LOCATION_MST_FK='|| LOC_PK_IN;
+          /*AND LMT.QILS_LOCATION_MST_FK IN (SELECT L.QILS_LOCATION_MST_FK FROM LOCATION_MST_TBL L
+                   START WITH L.QILS_LOCATION_MST_FK = 422                
+                   CONNECT BY PRIOR L.LOCATION_MST_PK = L.REPORTING_TO_FK)*/
+    ELSIF AGENT_PK_IN > 0 THEN
+        STRSTRING3 := STRSTRING3 || ' AND LMT.QILS_LOCATION_MST_FK IN (SELECT L.QILS_LOCATION_MST_FK FROM LOCATION_MST_TBL L ';
+        STRSTRING3 := STRSTRING3 || ' START WITH L.LOCATION_MST_PK = '||AGENT_PK_IN;
+        STRSTRING3 := STRSTRING3 || ' CONNECT BY PRIOR L.LOCATION_MST_PK = L.REPORTING_TO_FK) ';
+    ELSE
+        IF ISADMIN_IN = 1 THEN
+          STRSTRING3 := STRSTRING3 || ' AND LMT.QILS_LOCATION_MST_FK IN (SELECT L.QILS_LOCATION_MST_FK FROM LOCATION_MST_TBL L ';
+          STRSTRING3 := STRSTRING3 || ' START WITH L.LOCATION_MST_PK = '||LOG_LOC_IN;
+          STRSTRING3 := STRSTRING3 || ' CONNECT BY PRIOR L.LOCATION_MST_PK = L.REPORTING_TO_FK) ';
+        ELSE
+          STRSTRING3 := STRSTRING3 || ' AND LMT.QILS_LOCATION_MST_FK IN (SELECT L.QILS_LOCATION_MST_FK FROM LOCATION_MST_TBL L ';
+          STRSTRING3 := STRSTRING3 || ' WHERE L.LOCATION_MST_PK = '||LOG_LOC_IN || ')';
+        END IF;
+    END IF;
+    IF VENDOR_PK_IN > 0 THEN
+      STRSTRING3 := STRSTRING3 || ' AND VMT.VENDOR_MST_PK = '||VENDOR_PK_IN;
+    END IF;
+    IF VOUCHER_PK_IN > 0 THEN
+      STRSTRING3 := STRSTRING3 || ' AND DVH.DA_VOUCHER_HDR_PK = '||VOUCHER_PK_IN;
+    END IF;
+    STRSTRING3 := STRSTRING3 || ' )Q /*WHERE (Q.BAL) > 0 AND Q.AGE > 0 */) QRY ';
+    STRSTRING3 := STRSTRING3 || ' GROUP BY QRY.AGENT_PK, QRY.AGENT_ID, QRY.AGENT_NAME,QRY.LOCATION_MST_PK ';
+
+    --P_DEBUG('FETCH_VENDOR_AGEING_PKG.FETCH_VENDOR_AGEING_LIST-AGENT', STRSTRING || STRSTRING1 || STRSTRING2 || STRSTRING3);
+    OPEN AGENT_CUR FOR STRSTRING || STRSTRING1 || STRSTRING2 || STRSTRING3;
+    
+    
+    STRSTRING := ' SELECT QRY.VENDOR_MST_PK,
+       QRY.VENDOR_ID,
+       QRY.VENDOR_NAME,
+       QRY.AGENT_PK,
+       SUM(COL1),
+       SUM(COL2),
+       SUM(COL3),
+       SUM(COL4),
+       SUM(COL5),
+       (SUM(COL1) +SUM(COL2) + SUM(COL3) + SUM(COL4) + SUM(COL5)) TOTAL FROM ( ';
+   STRSTRING1 := ' SELECT VENDOR_MST_PK,
+                   VENDOR_ID,
+                   VENDOR_NAME,AGENT_PK,';
+   STRSTRING1 := STRSTRING1 || ' (CASE WHEN Q.AGE <='|| FIRSTAGE_IN || ' THEN (Q.BAL) ELSE 0 END) COL1,';
+   STRSTRING1 := STRSTRING1 || ' (CASE WHEN Q.AGE BETWEEN '|| (FIRSTAGE_IN+1) || ' AND ' || SECONDAGE_IN ||' THEN (Q.BAL) ELSE 0 END) COL2,';
+   STRSTRING1 := STRSTRING1 || ' (CASE WHEN Q.AGE BETWEEN '|| (SECONDAGE_IN+1) || ' AND ' || THIRDAGE_IN ||' THEN (Q.BAL) ELSE 0 END) COL3,';
+   STRSTRING1 := STRSTRING1 || ' (CASE WHEN Q.AGE BETWEEN '|| (THIRDAGE_IN+1) || ' AND ' || FOURTHAGE_IN ||' THEN (Q.BAL) ELSE 0 END) COL4,';   
+   STRSTRING1 := STRSTRING1 || ' (CASE WHEN Q.AGE > '|| FOURTHAGE_IN ||' THEN (Q.BAL) ELSE 0 END) COL5 FROM ( ';      
+   STRSTRING2 := ' SELECT DISTINCT QILS_LOC.LOCATION_MST_PK,
+                                QILS_LOC.LOCATION_ID,
+                                QILS_LOC.LOCATION_NAME,
+                                LMT.LOCATION_MST_PK AGENT_PK,
+                                LMT.LOCATION_ID AGENT_ID,
+                                LMT.LOCATION_NAME AGENT_NAME,
+                                VMT.VENDOR_MST_PK,
+                                VMT.VENDOR_ID,
+                                VMT.VENDOR_NAME,
+                                DVH.DA_VOUCHER_HDR_PK,
+                                DVH.DA_VOUCHER_REF_NO,';
+   STRSTRING2 := STRSTRING2 || ' ROUND(CONVERTCURRENCY(DVH.CUR_MST_FK,' || CURR_PK_IN || ',(DVH.TOTAL_AMOUNT - NVL(DVH.PAID_AMOUNT, 0))),2) BAL,';                                
+   STRSTRING2 := STRSTRING2 || ' TO_DATE(''' || DATE_AS_OF_IN || ''',DATEFORMAT) - TO_DATE(DVH.INVOICE_DUE_DATE, DATEFORMAT) AGE ';
+   STRSTRING3 := ' FROM QILS_LOCATION_MST_TBL QILS_LOC,
+                       VENDOR_MST_TBL        VMT,
+                       DA_VOUCHER_HDR        DVH,
+                       DA_VOUCHER_DTL        DVD,
+                       LOCATION_MST_TBL      LMT 
+    WHERE VMT.QILS_LOCATION_MST_FK = QILS_LOC.LOCATION_MST_PK
+                   AND DVH.DA_VOUCHER_HDR_PK = DVD.DA_VOUCHER_HDR_FK
+                   AND DVH.VENDOR_MST_FK = VMT.VENDOR_MST_PK
+                   AND DVH.LOCATION_MST_FK = LMT.LOCATION_MST_PK
+                   AND LMT.QILS_LOCATION_MST_FK = QILS_LOC.LOCATION_MST_PK ';
+    STRSTRING3 := STRSTRING3 || ' AND DVH.INVOICE_DUE_DATE <= TO_DATE(''' || DATE_AS_OF_IN || ''',DATEFORMAT ) ';
+        STRSTRING3 := STRSTRING3 || ' AND DVH.LINE_MST_FK = '|| LINE_MST_PK_IN;
+    IF LOC_PK_IN > 0 AND AGENT_PK_IN > 0 THEN
+        STRSTRING3 := STRSTRING3 || ' AND LMT.LOCATION_MST_PK = '|| AGENT_PK_IN;     
+        STRSTRING3 := STRSTRING3 || ' AND QILS_LOC.LOCATION_MST_PK = '|| LOC_PK_IN;
+    ELSIF LOC_PK_IN > 0 THEN
+        STRSTRING3 := STRSTRING3 || ' AND LMT.QILS_LOCATION_MST_FK='|| LOC_PK_IN;
+          /*AND LMT.QILS_LOCATION_MST_FK IN (SELECT L.QILS_LOCATION_MST_FK FROM LOCATION_MST_TBL L
+                   START WITH L.QILS_LOCATION_MST_FK = 422                
+                   CONNECT BY PRIOR L.LOCATION_MST_PK = L.REPORTING_TO_FK)*/
+    ELSIF AGENT_PK_IN > 0 THEN
+        STRSTRING3 := STRSTRING3 || ' AND LMT.QILS_LOCATION_MST_FK IN (SELECT L.QILS_LOCATION_MST_FK FROM LOCATION_MST_TBL L ';
+        STRSTRING3 := STRSTRING3 || ' START WITH L.LOCATION_MST_PK = '||AGENT_PK_IN;
+        STRSTRING3 := STRSTRING3 || ' CONNECT BY PRIOR L.LOCATION_MST_PK = L.REPORTING_TO_FK) ';
+    ELSE
+        IF ISADMIN_IN = 1 THEN
+          STRSTRING3 := STRSTRING3 || ' AND LMT.QILS_LOCATION_MST_FK IN (SELECT L.QILS_LOCATION_MST_FK FROM LOCATION_MST_TBL L ';
+          STRSTRING3 := STRSTRING3 || ' START WITH L.LOCATION_MST_PK = '||LOG_LOC_IN;
+          STRSTRING3 := STRSTRING3 || ' CONNECT BY PRIOR L.LOCATION_MST_PK = L.REPORTING_TO_FK) ';
+        ELSE
+          STRSTRING3 := STRSTRING3 || ' AND LMT.QILS_LOCATION_MST_FK IN (SELECT L.QILS_LOCATION_MST_FK FROM LOCATION_MST_TBL L ';
+          STRSTRING3 := STRSTRING3 || ' WHERE L.LOCATION_MST_PK = '||LOG_LOC_IN || ')';
+        END IF;
+    END IF;
+    IF VENDOR_PK_IN > 0 THEN
+      STRSTRING3 := STRSTRING3 || ' AND VMT.VENDOR_MST_PK = '||VENDOR_PK_IN;
+    END IF;
+    IF VOUCHER_PK_IN > 0 THEN
+      STRSTRING3 := STRSTRING3 || ' AND DVH.DA_VOUCHER_HDR_PK = '||VOUCHER_PK_IN;
+    END IF;
+    STRSTRING3 := STRSTRING3 || ' )Q /* WHERE (Q.BAL) > 0 AND Q.AGE > 0 */) QRY ';
+    STRSTRING3 := STRSTRING3 || ' GROUP BY QRY.VENDOR_MST_PK, QRY.VENDOR_ID, QRY.VENDOR_NAME,QRY.AGENT_PK ';
+
+    
+    OPEN VENDOR_CUR FOR STRSTRING || STRSTRING1 || STRSTRING2 || STRSTRING3;
+    
+    
+    STRSTRING := ' SELECT QRY.DA_VOUCHER_HDR_PK,
+       QRY.DA_VOUCHER_REF_NO,
+       QRY.VENDOR_MST_PK,
+       AGENT_PK,
+       SUM(COL1),
+       SUM(COL2),
+       SUM(COL3),
+       SUM(COL4),
+       SUM(COL5),
+       (SUM(COL1) +SUM(COL2) + SUM(COL3) + SUM(COL4) + SUM(COL5)) TOTAL FROM ( ';
+   STRSTRING1 := ' SELECT DA_VOUCHER_HDR_PK,
+                   DA_VOUCHER_REF_NO,
+                   VENDOR_MST_PK,AGENT_PK,';
+   STRSTRING1 := STRSTRING1 || ' (CASE WHEN Q.AGE <='|| FIRSTAGE_IN || ' THEN (Q.BAL) ELSE 0 END) COL1,';
+   STRSTRING1 := STRSTRING1 || ' (CASE WHEN Q.AGE BETWEEN '|| (FIRSTAGE_IN+1) || ' AND ' || SECONDAGE_IN ||' THEN (Q.BAL) ELSE 0 END) COL2,';
+   STRSTRING1 := STRSTRING1 || ' (CASE WHEN Q.AGE BETWEEN '|| (SECONDAGE_IN+1) || ' AND ' || THIRDAGE_IN ||' THEN (Q.BAL) ELSE 0 END) COL3,';
+   STRSTRING1 := STRSTRING1 || ' (CASE WHEN Q.AGE BETWEEN '|| (THIRDAGE_IN+1) || ' AND ' || FOURTHAGE_IN ||' THEN (Q.BAL) ELSE 0 END) COL4,';   
+   STRSTRING1 := STRSTRING1 || ' (CASE WHEN Q.AGE > '|| FOURTHAGE_IN ||' THEN (Q.BAL) ELSE 0 END) COL5 FROM ( ';      
+   STRSTRING2 := ' SELECT DISTINCT QILS_LOC.LOCATION_MST_PK,
+                                QILS_LOC.LOCATION_ID,
+                                QILS_LOC.LOCATION_NAME,
+                                LMT.LOCATION_MST_PK AGENT_PK,
+                                LMT.LOCATION_ID AGENT_ID,
+                                LMT.LOCATION_NAME AGENT_NAME,
+                                VMT.VENDOR_MST_PK,
+                                VMT.VENDOR_ID,
+                                VMT.VENDOR_NAME,
+                                DVH.DA_VOUCHER_HDR_PK,
+                                DVH.DA_VOUCHER_REF_NO,';
+   STRSTRING2 := STRSTRING2 || ' ROUND(CONVERTCURRENCY(DVH.CUR_MST_FK,' || CURR_PK_IN || ',(DVH.TOTAL_AMOUNT - NVL(DVH.PAID_AMOUNT, 0))),2) BAL,';                                                                
+   STRSTRING2 := STRSTRING2 || ' TO_DATE(''' || DATE_AS_OF_IN || ''',DATEFORMAT) - TO_DATE(DVH.INVOICE_DUE_DATE, DATEFORMAT) AGE ';
+   STRSTRING3 := ' FROM QILS_LOCATION_MST_TBL QILS_LOC,
+                       VENDOR_MST_TBL        VMT,
+                       DA_VOUCHER_HDR        DVH,
+                       DA_VOUCHER_DTL        DVD,
+                       LOCATION_MST_TBL      LMT 
+    WHERE VMT.QILS_LOCATION_MST_FK = QILS_LOC.LOCATION_MST_PK
+                   AND DVH.DA_VOUCHER_HDR_PK = DVD.DA_VOUCHER_HDR_FK
+                   AND DVH.VENDOR_MST_FK = VMT.VENDOR_MST_PK
+                   AND DVH.LOCATION_MST_FK = LMT.LOCATION_MST_PK
+                   AND LMT.QILS_LOCATION_MST_FK = QILS_LOC.LOCATION_MST_PK ';
+    STRSTRING3 := STRSTRING3 || ' AND DVH.INVOICE_DUE_DATE <= TO_DATE(''' || DATE_AS_OF_IN || ''',DATEFORMAT )';
+        STRSTRING3 := STRSTRING3 || ' AND DVH.LINE_MST_FK = '|| LINE_MST_PK_IN;
+    IF LOC_PK_IN > 0 AND AGENT_PK_IN > 0 THEN
+        STRSTRING3 := STRSTRING3 || ' AND LMT.LOCATION_MST_PK = '|| AGENT_PK_IN;     
+        STRSTRING3 := STRSTRING3 || ' AND QILS_LOC.LOCATION_MST_PK = '|| LOC_PK_IN;
+    ELSIF LOC_PK_IN > 0 THEN
+        STRSTRING3 := STRSTRING3 || ' AND LMT.QILS_LOCATION_MST_FK='|| LOC_PK_IN;
+          /*AND LMT.QILS_LOCATION_MST_FK IN (SELECT L.QILS_LOCATION_MST_FK FROM LOCATION_MST_TBL L
+                   START WITH L.QILS_LOCATION_MST_FK = 422                
+                   CONNECT BY PRIOR L.LOCATION_MST_PK = L.REPORTING_TO_FK)*/
+    ELSIF AGENT_PK_IN > 0 THEN
+        STRSTRING3 := STRSTRING3 || ' AND LMT.QILS_LOCATION_MST_FK IN (SELECT L.QILS_LOCATION_MST_FK FROM LOCATION_MST_TBL L ';
+        STRSTRING3 := STRSTRING3 || ' START WITH L.LOCATION_MST_PK = '||AGENT_PK_IN;
+        STRSTRING3 := STRSTRING3 || ' CONNECT BY PRIOR L.LOCATION_MST_PK = L.REPORTING_TO_FK) ';
+    ELSE
+        IF ISADMIN_IN = 1 THEN
+          STRSTRING3 := STRSTRING3 || ' AND LMT.QILS_LOCATION_MST_FK IN (SELECT L.QILS_LOCATION_MST_FK FROM LOCATION_MST_TBL L ';
+          STRSTRING3 := STRSTRING3 || ' START WITH L.LOCATION_MST_PK = '||LOG_LOC_IN;
+          STRSTRING3 := STRSTRING3 || ' CONNECT BY PRIOR L.LOCATION_MST_PK = L.REPORTING_TO_FK) ';
+        ELSE
+          STRSTRING3 := STRSTRING3 || ' AND LMT.QILS_LOCATION_MST_FK IN (SELECT L.QILS_LOCATION_MST_FK FROM LOCATION_MST_TBL L ';
+          STRSTRING3 := STRSTRING3 || ' WHERE L.LOCATION_MST_PK = '||LOG_LOC_IN || ')';
+        END IF;
+    END IF;
+    IF VENDOR_PK_IN > 0 THEN
+      STRSTRING3 := STRSTRING3 || ' AND VMT.VENDOR_MST_PK = '||VENDOR_PK_IN;
+    END IF;
+    IF VOUCHER_PK_IN > 0 THEN
+      STRSTRING3 := STRSTRING3 || ' AND DVH.DA_VOUCHER_HDR_PK = '||VOUCHER_PK_IN;
+    END IF;
+    STRSTRING3 := STRSTRING3 || ' )Q /* WHERE (Q.BAL) > 0 AND Q.AGE > 0 */) QRY ';
+    STRSTRING3 := STRSTRING3 || ' GROUP BY QRY.DA_VOUCHER_HDR_PK, QRY.DA_VOUCHER_REF_NO, QRY.VENDOR_MST_PK,QRY.AGENT_PK ORDER BY QRY.DA_VOUCHER_REF_NO ';
+
+    --P_DEBUG('FETCH_VENDOR_AGEING_PKG.FETCH_VENDOR_AGEING_LIST-VOUHR', STRSTRING || STRSTRING1 || STRSTRING2 || STRSTRING3);
+    OPEN VOUCHER_CUR FOR STRSTRING || STRSTRING1 || STRSTRING2 || STRSTRING3;
+    
+   END;
+   
+  PROCEDURE FETCH_VENDOR_AGEING_REPORT(LOC_PK_IN     NUMBER,
+                                     AGENT_PK_IN   NUMBER,
+                                     DATE_AS_OF_IN DATE,
+                                     VENDOR_PK_IN  NUMBER,
+                                     VOUCHER_PK_IN NUMBER,
+                                     CURR_PK_IN    NUMBER,
+                                     FIRSTAGE_IN   NUMBER,
+                                     SECONDAGE_IN  NUMBER,
+                                     THIRDAGE_IN   NUMBER,
+                                     FOURTHAGE_IN  NUMBER,
+                                     LOG_LOC_IN    NUMBER,
+                                     ISADMIN_IN    NUMBER,                                    
+                                     REPORT_CUR   OUT DATA_SET) IS
+  
+    STRSTRING      VARCHAR2(32767);
+    STRSTRING1     VARCHAR2(32767);
+    STRSTRING2     VARCHAR2(32767);
+    STRSTRING3     VARCHAR2(32767);
+    STRSTRING4     VARCHAR2(32767);
+    STRSTRING5     VARCHAR2(32767);
+    
+    BEGIN
+      STRSTRING := ' SELECT QRY.DA_VOUCHER_HDR_PK,
+       QRY.DA_VOUCHER_REF_NO,
+       QRY.VENDOR_MST_PK,
+       QRY.LOCATION_ID,
+       QRY.LOCATION_NAME,
+       QRY.AGENT_ID,
+       QRY.AGENT_NAME,
+       QRY.VENDOR_ID,
+       QRY.VENDOR_NAME,
+       SUM(COL1) COL1,
+       SUM(COL2) COL2,
+       SUM(COL3) COL3,
+       SUM(COL4) COL4,
+       SUM(COL5) COL5,
+       (SUM(COL1) +SUM(COL2) + SUM(COL3) + SUM(COL4) + SUM(COL5)) TOTAL FROM ( ';
+   STRSTRING1 := ' SELECT DA_VOUCHER_HDR_PK,
+                   DA_VOUCHER_REF_NO,
+                   VENDOR_MST_PK,
+                   Q.LOCATION_ID,
+                   Q.LOCATION_NAME,
+                   Q.AGENT_ID,
+                   Q.AGENT_NAME,
+                   Q.VENDOR_ID,
+                   Q.VENDOR_NAME,';
+   STRSTRING1 := STRSTRING1 || ' (CASE WHEN Q.AGE <='|| FIRSTAGE_IN || ' THEN (Q.BAL) ELSE 0 END) COL1,';
+   STRSTRING1 := STRSTRING1 || ' (CASE WHEN Q.AGE BETWEEN '|| (FIRSTAGE_IN+1) || ' AND ' || SECONDAGE_IN ||' THEN (Q.BAL) ELSE 0 END) COL2,';
+   STRSTRING1 := STRSTRING1 || ' (CASE WHEN Q.AGE BETWEEN '|| (SECONDAGE_IN+1) || ' AND ' || THIRDAGE_IN ||' THEN (Q.BAL) ELSE 0 END) COL3,';
+   STRSTRING1 := STRSTRING1 || ' (CASE WHEN Q.AGE BETWEEN '|| (THIRDAGE_IN+1) || ' AND ' || FOURTHAGE_IN ||' THEN (Q.BAL) ELSE 0 END) COL4,';   
+   STRSTRING1 := STRSTRING1 || ' (CASE WHEN Q.AGE > '|| FOURTHAGE_IN ||' THEN (Q.BAL) ELSE 0 END) COL5 FROM ( ';      
+   STRSTRING2 := ' SELECT DISTINCT QILS_LOC.LOCATION_MST_PK,
+                                QILS_LOC.LOCATION_ID,
+                                QILS_LOC.LOCATION_NAME,
+                                LMT.LOCATION_MST_PK AGENT_PK,
+                                LMT.LOCATION_ID AGENT_ID,
+                                LMT.LOCATION_NAME AGENT_NAME,
+                                VMT.VENDOR_MST_PK,
+                                VMT.VENDOR_ID,
+                                VMT.VENDOR_NAME,
+                                DVH.DA_VOUCHER_HDR_PK,
+                                DVH.DA_VOUCHER_REF_NO,';
+   STRSTRING2 := STRSTRING2 || ' ROUND(CONVERTCURRENCY(DVH.CUR_MST_FK,' || CURR_PK_IN || ',(DVH.TOTAL_AMOUNT - NVL(DVH.PAID_AMOUNT, 0))),2) BAL,';                                
+   STRSTRING2 := STRSTRING2 || ' TO_DATE(''' || DATE_AS_OF_IN || ''',DATEFORMAT) - TO_DATE(DVH.INVOICE_DUE_DATE, DATEFORMAT) AGE ';
+   STRSTRING3 := ' FROM QILS_LOCATION_MST_TBL QILS_LOC,
+                       VENDOR_MST_TBL        VMT,
+                       DA_VOUCHER_HDR        DVH,
+                       DA_VOUCHER_DTL        DVD,
+                       LOCATION_MST_TBL      LMT 
+    WHERE VMT.QILS_LOCATION_MST_FK = QILS_LOC.LOCATION_MST_PK
+                   AND DVH.DA_VOUCHER_HDR_PK = DVD.DA_VOUCHER_HDR_FK
+                   AND DVH.VENDOR_MST_FK = VMT.VENDOR_MST_PK
+                   AND DVH.LOCATION_MST_FK = LMT.LOCATION_MST_PK
+                   AND LMT.QILS_LOCATION_MST_FK = QILS_LOC.LOCATION_MST_PK ';
+    STRSTRING3 := STRSTRING3 || ' AND DVH.INVOICE_DUE_DATE <= TO_DATE(''' || DATE_AS_OF_IN || ''',DATEFORMAT ) ';
+    IF LOC_PK_IN > 0 AND AGENT_PK_IN > 0 THEN
+        STRSTRING3 := STRSTRING3 || ' AND LMT.LOCATION_MST_PK = '|| AGENT_PK_IN;     
+        STRSTRING3 := STRSTRING3 || ' AND QILS_LOC.LOCATION_MST_PK = '|| LOC_PK_IN;
+    ELSIF LOC_PK_IN > 0 THEN
+        STRSTRING3 := STRSTRING3 || ' AND LMT.QILS_LOCATION_MST_FK='|| LOC_PK_IN;
+          /*AND LMT.QILS_LOCATION_MST_FK IN (SELECT L.QILS_LOCATION_MST_FK FROM LOCATION_MST_TBL L
+                   START WITH L.QILS_LOCATION_MST_FK = 422                
+                   CONNECT BY PRIOR L.LOCATION_MST_PK = L.REPORTING_TO_FK)*/
+    ELSIF AGENT_PK_IN > 0 THEN
+        STRSTRING3 := STRSTRING3 || ' AND LMT.QILS_LOCATION_MST_FK IN (SELECT L.QILS_LOCATION_MST_FK FROM LOCATION_MST_TBL L ';
+        STRSTRING3 := STRSTRING3 || ' START WITH L.LOCATION_MST_PK = '||AGENT_PK_IN;
+        STRSTRING3 := STRSTRING3 || ' CONNECT BY PRIOR L.LOCATION_MST_PK = L.REPORTING_TO_FK) ';
+    ELSE
+        IF ISADMIN_IN = 1 THEN
+          STRSTRING3 := STRSTRING3 || ' AND LMT.QILS_LOCATION_MST_FK IN (SELECT L.QILS_LOCATION_MST_FK FROM LOCATION_MST_TBL L ';
+          STRSTRING3 := STRSTRING3 || ' START WITH L.LOCATION_MST_PK = '||LOG_LOC_IN;
+          STRSTRING3 := STRSTRING3 || ' CONNECT BY PRIOR L.LOCATION_MST_PK = L.REPORTING_TO_FK) ';
+        ELSE
+          STRSTRING3 := STRSTRING3 || ' AND LMT.QILS_LOCATION_MST_FK IN (SELECT L.QILS_LOCATION_MST_FK FROM LOCATION_MST_TBL L ';
+          STRSTRING3 := STRSTRING3 || ' WHERE L.LOCATION_MST_PK = '||LOG_LOC_IN || ')';
+        END IF;
+    END IF;
+    IF VENDOR_PK_IN > 0 THEN
+      STRSTRING3 := STRSTRING3 || ' AND VMT.VENDOR_MST_PK = '||VENDOR_PK_IN;
+    END IF;
+    IF VOUCHER_PK_IN > 0 THEN
+      STRSTRING3 := STRSTRING3 || ' AND DVH.DA_VOUCHER_HDR_PK = '||VOUCHER_PK_IN;
+    END IF;    
+    STRSTRING3 := STRSTRING3 || ' )Q  WHERE (Q.BAL) > 0 AND Q.AGE > 0) QRY ';
+    STRSTRING3 := STRSTRING3 || ' GROUP BY QRY.DA_VOUCHER_HDR_PK, QRY.DA_VOUCHER_REF_NO, QRY.VENDOR_MST_PK,';
+    STRSTRING3 := STRSTRING3 || ' QRY.LOCATION_ID,QRY.LOCATION_NAME,QRY.AGENT_ID,QRY.AGENT_NAME,QRY.VENDOR_ID,QRY.VENDOR_NAME ORDER BY QRY.DA_VOUCHER_REF_NO ';
+
+    OPEN REPORT_CUR FOR STRSTRING || STRSTRING1 || STRSTRING2 || STRSTRING3;
+           
+    END;
+    
+ PROCEDURE FETCH_VENDOR_AGEING_ROE(LOC_PK_IN     NUMBER,
+                                     AGENT_PK_IN   NUMBER,
+                                     DATE_AS_OF_IN DATE,
+                                     VENDOR_PK_IN  NUMBER,
+                                     VOUCHER_PK_IN NUMBER,
+                                     CURR_PK_IN    NUMBER,
+                                     FIRSTAGE_IN   NUMBER,
+                                     SECONDAGE_IN  NUMBER,
+                                     THIRDAGE_IN   NUMBER,
+                                     FOURTHAGE_IN  NUMBER,
+                                     LOG_LOC_IN    NUMBER,
+                                     ISADMIN_IN    NUMBER, 
+                                     VOUCHER_CUR   OUT DATA_SET) IS
+  
+    STRSTRING      VARCHAR2(32767);
+    STRSTRING1     VARCHAR2(32767);
+    STRSTRING2     VARCHAR2(32767);
+    STRSTRING3     VARCHAR2(32767);
+    STRSTRING4     VARCHAR2(32767);
+    STRSTRING5     VARCHAR2(32767);
+    V_MAIN         VARCHAR2(32767);
+    V_TOTALPAGE    NUMBER(10);
+    V_TOTALRECORDS NUMBER(10);
+    V_CURRENTPAGE  NUMBER(10);
+    V_LAST         NUMBER(10);
+    V_START        NUMBER(10);
+    V_PAGESIZE     NUMBER(10);
+  
+  begin
+   STRSTRING1 := ' SELECT Q.DA_VOUCHER_REF_NO,Q.CUR_MST_FK,Q.CURRENCY_ID, ';
+   STRSTRING1 := STRSTRING1 || ' CONVERTCURRENCY(Q.CUR_MST_FK,' ||CURR_PK_IN || ',BAL) ROE FROM ( ';
+   STRSTRING2 := ' SELECT DISTINCT QILS_LOC.LOCATION_MST_PK,
+                                QILS_LOC.LOCATION_ID,
+                                QILS_LOC.LOCATION_NAME,
+                                LMT.LOCATION_MST_PK AGENT_PK,
+                                LMT.LOCATION_ID AGENT_ID,
+                                LMT.LOCATION_NAME AGENT_NAME,
+                                VMT.VENDOR_MST_PK,
+                                VMT.VENDOR_ID,
+                                VMT.VENDOR_NAME,
+                                DVH.DA_VOUCHER_HDR_PK,
+                                DVH.DA_VOUCHER_REF_NO, DVH.CUR_MST_FK,CTMT.CURRENCY_ID,';
+   STRSTRING2 := STRSTRING2 || ' ROUND(CONVERTCURRENCY(DVH.CUR_MST_FK,DVH.CUR_MST_FK,(DVH.TOTAL_AMOUNT - NVL(DVH.PAID_AMOUNT, 0))),2) BAL,';                              
+   STRSTRING2 := STRSTRING2 || ' TO_DATE(''' || DATE_AS_OF_IN || ''',DATEFORMAT) - TO_DATE(DVH.INVOICE_DUE_DATE, DATEFORMAT) AGE ';   
+   STRSTRING3 := ' FROM QILS_LOCATION_MST_TBL QILS_LOC,
+                       VENDOR_MST_TBL        VMT,
+                       DA_VOUCHER_HDR        DVH,
+                       DA_VOUCHER_DTL        DVD,
+                       LOCATION_MST_TBL      LMT,
+                       CURRENCY_TYPE_MST_TBL CTMT 
+    WHERE VMT.QILS_LOCATION_MST_FK = QILS_LOC.LOCATION_MST_PK
+                   AND DVH.DA_VOUCHER_HDR_PK = DVD.DA_VOUCHER_HDR_FK
+                   AND DVH.VENDOR_MST_FK = VMT.VENDOR_MST_PK
+                   AND DVH.LOCATION_MST_FK = LMT.LOCATION_MST_PK
+                   AND LMT.QILS_LOCATION_MST_FK = QILS_LOC.LOCATION_MST_PK 
+                   AND CTMT.CURRENCY_MST_PK = DVH.CUR_MST_FK ';
+    STRSTRING3 := STRSTRING3 || ' AND DVH.INVOICE_DUE_DATE <= TO_DATE(''' || DATE_AS_OF_IN || ''',DATEFORMAT )';
+    IF LOC_PK_IN > 0 AND AGENT_PK_IN > 0 THEN
+        STRSTRING3 := STRSTRING3 || ' AND LMT.LOCATION_MST_PK = '|| AGENT_PK_IN;     
+        STRSTRING3 := STRSTRING3 || ' AND QILS_LOC.LOCATION_MST_PK = '|| LOC_PK_IN;
+    ELSIF LOC_PK_IN > 0 THEN
+        STRSTRING3 := STRSTRING3 || ' AND LMT.QILS_LOCATION_MST_FK='|| LOC_PK_IN;
+          /*AND LMT.QILS_LOCATION_MST_FK IN (SELECT L.QILS_LOCATION_MST_FK FROM LOCATION_MST_TBL L
+                   START WITH L.QILS_LOCATION_MST_FK = 422                
+                   CONNECT BY PRIOR L.LOCATION_MST_PK = L.REPORTING_TO_FK)*/
+    ELSIF AGENT_PK_IN > 0 THEN
+        STRSTRING3 := STRSTRING3 || ' AND LMT.QILS_LOCATION_MST_FK IN (SELECT L.QILS_LOCATION_MST_FK FROM LOCATION_MST_TBL L ';
+        STRSTRING3 := STRSTRING3 || ' START WITH L.LOCATION_MST_PK = '||AGENT_PK_IN;
+        STRSTRING3 := STRSTRING3 || ' CONNECT BY PRIOR L.LOCATION_MST_PK = L.REPORTING_TO_FK) ';
+    ELSE
+        IF ISADMIN_IN = 1 THEN
+          STRSTRING3 := STRSTRING3 || ' AND LMT.QILS_LOCATION_MST_FK IN (SELECT L.QILS_LOCATION_MST_FK FROM LOCATION_MST_TBL L ';
+          STRSTRING3 := STRSTRING3 || ' START WITH L.LOCATION_MST_PK = '||LOG_LOC_IN ;
+          STRSTRING3 := STRSTRING3 || ' CONNECT BY PRIOR L.LOCATION_MST_PK = L.REPORTING_TO_FK) ';
+        ELSE
+          STRSTRING3 := STRSTRING3 || ' AND LMT.QILS_LOCATION_MST_FK IN (SELECT L.QILS_LOCATION_MST_FK FROM LOCATION_MST_TBL L ';
+          STRSTRING3 := STRSTRING3 || ' WHERE L.LOCATION_MST_PK = '||LOG_LOC_IN || ')';
+        END IF;       
+    END IF;
+    IF VENDOR_PK_IN > 0 THEN
+      STRSTRING3 := STRSTRING3 || ' AND VMT.VENDOR_MST_PK = '||VENDOR_PK_IN;
+    END IF;
+    IF VOUCHER_PK_IN > 0 THEN
+      STRSTRING3 := STRSTRING3 || ' AND DVH.DA_VOUCHER_HDR_PK = '||VOUCHER_PK_IN;
+    END IF;
+    STRSTRING3 := STRSTRING3  || ' ) Q WHERE (Q.BAL) > 0 AND Q.AGE > 0';
+    
+    OPEN VOUCHER_CUR FOR STRSTRING1 || STRSTRING2 || STRSTRING3;
+    
+ END; 
+ 
+END FETCH_VENDOR_AGEING_PKG;
+/
